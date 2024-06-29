@@ -30,7 +30,7 @@ function LoginComponent() {
 			onSubmit={handleSubmit(login)}
 			className="md:w-1/2 sm:w-3/4 mx-auto h-screen justify-center flex flex-col"
 		>
-			<Container className="container flex gap-1 flex-col">
+			<Container className="flex gap-1 flex-col">
 				{errors.server && (
 					<div className="p-2 bg-red-200">
 						<ErrorMessage>{errors.server.message}</ErrorMessage>
@@ -66,7 +66,7 @@ function LoginComponent() {
 					{errors.password && <ErrorMessage>{errors.password.message}</ErrorMessage>}
 				</div>
 				<Button type="submit" className="my-3">
-					Signup
+					Login
 				</Button>
 			</Container>
 		</form>
