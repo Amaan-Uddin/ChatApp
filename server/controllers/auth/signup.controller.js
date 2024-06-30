@@ -1,8 +1,7 @@
 const bcrypt = require('bcrypt')
-const User = require('../../models/User')
-const { fetchUser, signAccessToken, signRefreshToken } = require('../../utils/index')
+const { fetchUser, createUser, signAccessToken, signRefreshToken } = require('../../utils/index')
 
-const signupHandler = async (req, res) => {
+module.exports = async function signupHandler(req, res) {
 	try {
 		console.log('req.body = ', req.body)
 		const { name, email, password } = req.body
@@ -15,18 +14,14 @@ const signupHandler = async (req, res) => {
 
 		const hashPassword = await bcrypt.hash(password, 12)
 
-		const newUser = await User.create({
-			email: email,
-			password: hashPassword,
-			name: name,
-		})
+		const newUser = await createUser({ email: email, password: hashPassword, name: name })
 		console.log(newUser)
 
 		const accessToken = signAccessToken({
-			payload: { id: newUser._id },
+			payload: { _id: newUser._id },
 		})
-		const refreshToken = signRefreshToken({
-			payload: { id: newUser._id, email: newUser.email, name: newUser.name },
+		const refreshToken = await signRefreshToken({
+			payload: { _id: newUser._id, email: newUser.email, name: newUser.name },
 		})
 
 		console.log(`accessToken: ${accessToken}\n\nRefreshToken: ${refreshToken}`)
@@ -35,12 +30,10 @@ const signupHandler = async (req, res) => {
 		res.cookie('refreshToken', refreshToken, { httpOnly: true })
 
 		res.status(201).json({
-			message: 'User registered successfully',
+			message: 'User registered successfully.',
 		})
 	} catch (error) {
 		console.error(error)
 		res.status(500).json({ error: 'Internal Server Error' })
 	}
 }
-
-module.exports = signupHandler
