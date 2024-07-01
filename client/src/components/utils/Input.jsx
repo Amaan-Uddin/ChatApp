@@ -3,7 +3,7 @@ import { forwardRef, useId } from 'react'
 const Input = forwardRef(({ type = 'text', label, className = '', ...props }, ref) => {
 	const id = useId()
 	return (
-		<div className="my-1">
+		<div className="my-1 w-full">
 			{label && (
 				<label htmlFor={id} className="text-sm text-gray-700 w-full">
 					{label}

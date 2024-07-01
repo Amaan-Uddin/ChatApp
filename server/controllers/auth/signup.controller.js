@@ -18,7 +18,7 @@ module.exports = async function signupHandler(req, res) {
 		console.log(newUser)
 
 		const accessToken = signAccessToken({
-			payload: { _id: newUser._id },
+			payload: { _id: newUser._id, email: newUser.email, name: newUser.name },
 		})
 		const refreshToken = await signRefreshToken({
 			payload: { _id: newUser._id, email: newUser.email, name: newUser.name },
@@ -27,10 +27,11 @@ module.exports = async function signupHandler(req, res) {
 		console.log(`accessToken: ${accessToken}\n\nRefreshToken: ${refreshToken}`)
 
 		res.cookie('accessToken', accessToken, { httpOnly: true })
-		res.cookie('refreshToken', refreshToken, { httpOnly: true })
+		res.cookie('refreshToken', refreshToken, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 })
 
 		res.status(201).json({
 			message: 'User registered successfully.',
+			user: { _id: newUser._id, email: newUser.email, name: newUser.name },
 		})
 	} catch (error) {
 		console.error(error)

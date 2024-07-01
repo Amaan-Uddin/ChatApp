@@ -1,20 +1,28 @@
 import { Input, Button, Container, ErrorMessage } from '../../utils'
 import { useForm } from 'react-hook-form'
 import authService from '../../../services/auth_service'
+import { useNavigate } from 'react-router-dom'
+import { useContext } from 'react'
+import { UserContext } from '../../../context/UserContext'
 
 function LoginComponent() {
 	const {
 		register,
 		handleSubmit,
 		setError,
+		clearErrors,
 		formState: { errors },
 	} = useForm()
+	const navigate = useNavigate()
+	const { setUser } = useContext(UserContext)
 
 	async function login(data) {
 		console.log(data)
 		try {
 			const response = await authService.login_user(data)
-			console.log(response)
+			console.log(response.message)
+			setUser({ ...response.user, loggedIn: true })
+			navigate('/chat')
 		} catch (error) {
 			console.error(error)
 			if (error.field) {
@@ -41,6 +49,7 @@ function LoginComponent() {
 					<Input
 						{...register('email', {
 							required: 'Email is required.',
+							onChange: () => clearErrors('server'),
 						})}
 						type="email"
 						placeholder="Enter email..."
@@ -58,6 +67,7 @@ function LoginComponent() {
 								message:
 									'Password must contain at least one uppercase letter, one lowercase letter, one number, and no symbols',
 							},
+							onChange: () => clearErrors('server'),
 						})}
 						type="password"
 						placeholder="Enter password"

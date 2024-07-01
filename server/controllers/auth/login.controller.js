@@ -16,7 +16,7 @@ module.exports = async function loginHandler(req, res) {
 		if (!isMatch) return res.status(401).json({ error: 'Unauthorized, incorrect email or password.' })
 
 		const accessToken = signAccessToken({
-			payload: { _id: user._id },
+			payload: { _id: user._id, email: user.email, name: user.name },
 		})
 		const refreshToken = await signRefreshToken({
 			payload: { _id: user._id, email: user.email, name: user.name },
@@ -25,10 +25,11 @@ module.exports = async function loginHandler(req, res) {
 		console.log(`accessToken: ${accessToken}\n\nRefreshToken: ${refreshToken}`)
 
 		res.cookie('accessToken', accessToken, { httpOnly: true })
-		res.cookie('refreshToken', refreshToken, { httpOnly: true })
+		res.cookie('refreshToken', refreshToken, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 })
 
 		res.status(200).json({
 			message: 'User logged in successfully.',
+			user: { _id: user._id, email: user.email, name: user.name },
 		})
 	} catch (error) {
 		console.error(error)

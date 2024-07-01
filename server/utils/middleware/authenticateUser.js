@@ -2,9 +2,10 @@ const refreshAccessToken = require('../functions/refreahAccessToken')
 const { verifyAccessToken } = require('../functions/verifyTokens')
 
 module.exports = async function authenticateUser(req, res, next) {
-	const accessToken = req.cookies?.accessToken
-	if (!accessToken) return res.status(401).json({ error: 'Unauthorized' })
 	try {
+		const accessToken = req.cookies?.accessToken
+		// if (!accessToken) return res.status(401).json({ error: 'Unauthorized' })
+		if (!accessToken) throw Object.assign(new Error('No access token'), { name: 'JsonWebTokenError' })
 		const decode = verifyAccessToken(accessToken)
 		console.log('AuthenticateUser :: accessToken :: ', decode)
 		req.user = decode.payload

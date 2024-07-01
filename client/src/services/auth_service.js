@@ -13,6 +13,22 @@ export class AuthService {
 		return await this.responseHandler('/auth/login', user_data)
 	}
 
+	async getCurrentUser() {
+		try {
+			const response = await fetch(`${this.baseUrl}/auth/current-user`, {
+				method: 'GET',
+				credentials: 'include',
+			})
+			const responseMsg = await response.json()
+			if (!response.ok) {
+				throw new Error(responseMsg.error || 'Something went wrong.')
+			}
+			return responseMsg
+		} catch (error) {
+			throw new Error(error.message || 'An unknown error occured in authservice.')
+		}
+	}
+
 	async responseHandler(endpoint, data) {
 		try {
 			const response = await fetch(`${this.baseUrl}${endpoint}`, {

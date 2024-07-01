@@ -1,4 +1,5 @@
 module.exports = {
+	allowedOrigins: String(process.env.ALLOWED_ORIGINS),
 	serverPort: String(process.env.PORT),
 	mongodbURI: String(process.env.MONGODB_URI),
 	privateAccessKey: String(process.env.PRIVATE_ACCESS_KEY),
