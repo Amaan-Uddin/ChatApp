@@ -1,4 +1,4 @@
-import { Input, Button, Container, ErrorMessage } from '../../utils'
+import { Input, Button, Container, ErrorMessage, Logo } from '../../utils'
 import { useForm } from 'react-hook-form'
 import authService from '../../../services/auth_service'
 import { useNavigate } from 'react-router-dom'
@@ -39,6 +39,7 @@ function SignupComponent() {
 			className="md:w-1/2 sm:w-3/4 mx-auto h-screen justify-center flex flex-col"
 		>
 			<Container className="container flex gap-1 flex-col">
+				<Logo className="mb-3" />
 				{errors.server && (
 					<div className="p-2 bg-red-200">
 						<ErrorMessage>{errors.server.message}</ErrorMessage>
@@ -49,7 +50,7 @@ function SignupComponent() {
 					<Input
 						{...register('name', {
 							required: 'Name is required.',
-							pattern: { value: /^[A-Za-z\s]+$/, message: 'Name must contain only alphabets' },
+							// pattern: { value: /^[A-Za-z\s]+$/, message: 'Name must contain only alphabets' },
 							onChange: () => clearErrors('server'),
 						})}
 						placeholder="Enter name..."
@@ -75,9 +76,9 @@ function SignupComponent() {
 						{...register('password', {
 							required: 'Password is required.',
 							pattern: {
-								value: /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d]+$/,
+								value: /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d\S]+$/,
 								message:
-									'Password must contain at least one uppercase letter, one lowercase letter, one number, and no symbols',
+									'Password must contain at least one uppercase letter, one lowercase letter and one number',
 							},
 							onChange: () => clearErrors('server'),
 						})}

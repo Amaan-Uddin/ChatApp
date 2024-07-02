@@ -1,4 +1,4 @@
-import { Input, Button, Container, ErrorMessage } from '../../utils'
+import { Input, Button, Container, ErrorMessage, Logo } from '../../utils'
 import { useForm } from 'react-hook-form'
 import authService from '../../../services/auth_service'
 import { useNavigate } from 'react-router-dom'
@@ -39,6 +39,7 @@ function LoginComponent() {
 			className="md:w-1/2 sm:w-3/4 mx-auto h-screen justify-center flex flex-col"
 		>
 			<Container className="flex gap-1 flex-col">
+				<Logo className="mb-3" />
 				{errors.server && (
 					<div className="p-2 bg-red-200">
 						<ErrorMessage>{errors.server.message}</ErrorMessage>
