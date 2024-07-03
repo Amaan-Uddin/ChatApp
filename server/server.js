@@ -11,6 +11,8 @@ const mongoose = require('mongoose')
 const dbConnect = require('./config/dbConn')
 const { getRefreshToken } = require('./utils/index')
 
+const Message = require('./models/Message')
+
 const authRouter = require('./routes/authRoute')
 const { verifyRefreshToken } = require('./utils/functions/verifyTokens')
 
@@ -64,6 +66,30 @@ wss.on('connection', (socket, req) => {
 		socket.send(JSON.stringify({ error: 'Unauthorized: No cookies found' }))
 		socket.close()
 	}
+
+	socket.on('message', async (message) => {
+		const data = JSON.parse(message.toString('utf-8'))
+		const { recipient, content, ...rest } = data.message
+		if (recipient) {
+			const doc = await Message.create({
+				sender: socket._id,
+				recipient: recipient,
+				message: content,
+			})
+			const allClients = [...clients.values()]
+			allClients
+				.filter((client) => client._id === recipient)
+				.forEach((client) => {
+					if (client.readyState === ws.OPEN) {
+						client.send(JSON.stringify({ ...data, messageId: doc._id }))
+					} else {
+						console.error(`Client ${client._id} is not open.`)
+					}
+				})
+		} else {
+			console.error('Recipient not specified in message:', data)
+		}
+	})
 
 	socket.on('close', () => {
 		console.log('Client disconnected.')
