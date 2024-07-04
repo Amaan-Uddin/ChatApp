@@ -7,13 +7,14 @@ require('dotenv').config()
 const { serverPort, allowedOrigins } = require('./config/config.env')
 const cors = require('cors')
 const cookieParser = require('cookie-parser')
-const mongoose = require('mongoose')
 const dbConnect = require('./config/dbConn')
-const { getRefreshToken } = require('./utils/index')
+const { getRefreshToken, Queue } = require('./utils/index')
 
 const Message = require('./models/Message')
 
 const authRouter = require('./routes/authRoute')
+const apiRouter = require('./routes/apiRoute')
+
 const { verifyRefreshToken } = require('./utils/functions/verifyTokens')
 
 dbConnect()
@@ -36,12 +37,15 @@ app.use(
 )
 
 app.use('/auth', authRouter)
+app.use('/api', apiRouter)
 
 const PORT = serverPort || 4050
 const server = http.createServer(app)
 const wss = new ws.Server({ server })
 
 const clients = new Map()
+const messageQueues = new Map()
+
 wss.on('connection', (socket, req) => {
 	const cookie = req.headers.cookie
 	if (cookie) {
@@ -69,23 +73,14 @@ wss.on('connection', (socket, req) => {
 
 	socket.on('message', async (message) => {
 		const data = JSON.parse(message.toString('utf-8'))
-		const { recipient, content, ...rest } = data.message
+		const { recipient, content } = data.message
 		if (recipient) {
-			const doc = await Message.create({
-				sender: socket._id,
-				recipient: recipient,
-				message: content,
-			})
-			const allClients = [...clients.values()]
-			allClients
-				.filter((client) => client._id === recipient)
-				.forEach((client) => {
-					if (client.readyState === ws.OPEN) {
-						client.send(JSON.stringify({ ...data, messageId: doc._id }))
-					} else {
-						console.error(`Client ${client._id} is not open.`)
-					}
-				})
+			const recipientQueue = messageQueues.get(recipient) || new Queue()
+			messageQueues.set(recipient, recipientQueue)
+
+			recipientQueue.enqueue({ sender: socket._id, recipient, content, originalData: data })
+
+			processQueue(recipient)
 		} else {
 			console.error('Recipient not specified in message:', data)
 		}
@@ -114,6 +109,56 @@ function broadCastOnlineUsers() {
 	})
 	console.log([...clients.values()].map((client) => ({ name: client.name, email: client.email })))
 }
+
+async function processQueue(recipient) {
+	const queue = messageQueues.get(recipient)
+
+	if (!queue || queue.isEmpty()) return
+
+	const client = clients.get(recipient)
+
+	if (!client || client.readyState !== ws.OPEN) {
+		// logic to store messages when user offline
+		while (!queue.isEmpty()) {
+			const { sender, content, originalData } = queue.dequeue()
+			try {
+				await Message.create({
+					sender,
+					recipient,
+					text: content,
+					isUnsent: true,
+				})
+			} catch (error) {
+				console.error('Error storing unsent message:', error)
+			}
+		}
+		return
+	}
+
+	if (client.processingQueue) return // If already processing, exit the function
+
+	client.processingQueue = true
+
+	while (!queue.isEmpty()) {
+		const { sender, content, originalData } = queue.dequeue()
+
+		try {
+			const doc = await Message.create({
+				sender,
+				recipient,
+				text: content,
+			})
+
+			client.send(JSON.stringify({ ...originalData, messageId: doc._id }))
+		} catch (error) {
+			console.error('Error processing message:', error)
+			queue.enqueue({ sender, recipient, content, originalData }) // Re-enqueue the message if there was an error
+			break // Exit the loop and wait for the next opportunity to process the queue
+		}
+	}
+	client.processingQueue = false
+}
+
 server.listen(PORT, () => {
 	console.log(`Server running on port: ${PORT}`)
 })

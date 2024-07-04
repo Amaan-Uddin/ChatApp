@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react'
 import { Input, Button, MemoizedAvatar, Logo } from '../utils'
 import { UserContext } from '../../context/UserContext'
 import { useForm } from 'react-hook-form'
+import configEnv from '../../config/config.env'
 
 function Chat() {
 	const { user } = useContext(UserContext)
@@ -10,27 +11,54 @@ function Chat() {
 	const [onlineUsers, setOnlineUsers] = useState([])
 	const [selectUser, setSelectUser] = useState(null)
 	const [messages, setMessages] = useState([])
+
 	const messageBoxRef = useRef(null)
-	useEffect(() => {
+	const reconnectAttemptsRef = useRef(0)
+	const unsentMessagesRef = useRef([])
+
+	function connectToWebSocket() {
 		const socket = new WebSocket('ws://localhost:4040')
-		setWebSocket(socket)
+		socket.addEventListener('open', () => {
+			console.log('WebSocket connection opened')
+			reconnectAttemptsRef.current = 0
+
+			// Send any unsent messages
+			while (unsentMessagesRef.current.length > 0) {
+				console.log(...unsentMessagesRef.current)
+
+				const message = unsentMessagesRef.current.shift()
+				socket.send(JSON.stringify(message))
+			}
+		})
+
 		socket.addEventListener('message', handleMessage)
-		// socket.onmessage = (event) => {
-		// 	const data = JSON.parse(event.data)
-		// 	if (data.type === 'online') {
-		// 		const uniqueUsers = new Map()
-		// 		data.users = data.users.filter((clients) => clients._id !== user._id)
-		// 		data.users.forEach((user) => {
-		// 			uniqueUsers.set(user._id, user)
-		// 		})
-		// 		setOnlineUsers(Array.from(uniqueUsers.values()))
-		// 	}
-		// }
-		return () => {
-			socket.removeEventListener('message', handleMessage)
+
+		socket.addEventListener('close', (event) => {
+			console.log('WebSocket connection closed', event)
+			attemptReconnect()
+		})
+
+		socket.addEventListener('error', (event) => {
+			console.error('WebSocket error', event)
 			socket.close()
+		})
+
+		setWebSocket(socket)
+	}
+
+	function attemptReconnect() {
+		if (reconnectAttemptsRef.current < 10) {
+			const timeout = Math.min(1000 * 2 ** reconnectAttemptsRef.current, 30000)
+			reconnectAttemptsRef.current += 1
+
+			setTimeout(() => {
+				console.log(`Attempting to reconnect... (${reconnectAttemptsRef.current})`)
+				connectToWebSocket()
+			}, timeout)
+		} else {
+			console.error('Max reconnect attempts reached')
 		}
-	}, [])
+	}
 
 	function handleMessage(event) {
 		const data = JSON.parse(event.data)
@@ -50,12 +78,16 @@ function Chat() {
 
 	function sendMessage(data) {
 		console.log(data)
-		webSocket.send(
-			JSON.stringify({
-				type: 'message',
-				message: { sender: user._id, recipient: selectUser, content: data.message },
-			})
-		)
+		const message = {
+			type: 'message',
+			message: { sender: user._id, recipient: selectUser, content: data.message },
+		}
+		if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+			webSocket.send(JSON.stringify(message))
+		} else {
+			unsentMessagesRef.current.push(message)
+			console.log(...unsentMessagesRef.current)
+		}
 		resetField('message')
 		setMessages((prev) => [...prev, { text: data.message, isOur: true, sender: user._id }])
 	}
@@ -65,6 +97,33 @@ function Chat() {
 			messageBoxRef.current.scrollIntoView({ behavior: 'smooth' })
 		}
 	}
+
+	useEffect(() => {
+		connectToWebSocket()
+
+		return () => {
+			if (webSocket) webSocket.close()
+		}
+	}, [])
+
+	useEffect(() => {
+		async function fetchMessages() {
+			try {
+				const response = await fetch(`${configEnv.serverUrl}/api/messages?recipient=${selectUser}`, {
+					method: 'GET',
+					credentials: 'include',
+				})
+				const responseMsg = await response.json()
+				if (!response.ok) throw new Error(responseMsg.error || 'Failed to fetch messages')
+				setMessages(responseMsg.messages)
+			} catch (error) {
+				console.error(error)
+			}
+		}
+		if (selectUser) {
+			fetchMessages()
+		}
+	}, [selectUser])
 
 	useEffect(() => {
 		scrollToBottom()
@@ -79,7 +138,7 @@ function Chat() {
 						<button
 							onClick={() => setSelectUser(user._id)}
 							key={user._id}
-							className={`border-b border-gray-100 py-4 px-4 flex gap-2 items-center cursor-pointer w-full ${
+							className={`border-b border-gray-100 py-3 px-4 flex gap-2 items-center cursor-pointer w-full ${
 								user._id === selectUser ? 'bg-sky-100 border-l-4 border-l-blue-500' : ''
 							}`}
 						>
@@ -102,17 +161,13 @@ function Chat() {
 								{messages.map((message, index) => (
 									<div
 										key={index}
-										className={`p-2 my-1 inline-flex max-w-72 rounded-lg text-sm break-words w-full ${
+										className={`p-2 my-1 inline-flex max-w-72 rounded-lg text-sm break-words  ${
 											message.sender === user._id
 												? 'bg-blue-500 text-white self-end'
 												: 'bg-white text-gray-600 self-start'
 										}  `}
 									>
-										<div className="break-words w-full">
-											sender: {`${message.sender}`} <br />
-											myId: {`${user._id}`} <br />
-											message: {`${message.text}`} <br />
-										</div>
+										<div className="break-words w-full">{message.text}</div>
 									</div>
 								))}
 								<div ref={messageBoxRef} />

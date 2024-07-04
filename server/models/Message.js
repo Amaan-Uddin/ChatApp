@@ -10,7 +10,7 @@ const MessageSchema = new mongoose.Schema(
 			type: mongoose.Schema.Types.ObjectId,
 			ref: 'User',
 		},
-		message: String,
+		text: String,
 	},
 	{ timestamps: true }
 )
