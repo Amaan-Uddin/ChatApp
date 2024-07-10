@@ -1,0 +1,1 @@
+TODO: create room for each conversation so that messages are not interupted

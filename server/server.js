@@ -11,6 +11,7 @@ const dbConnect = require('./config/dbConn')
 const { getRefreshToken, Queue } = require('./utils/index')
 
 const Message = require('./models/Message')
+const User = require('./models/User')
 
 const authRouter = require('./routes/authRoute')
 const apiRouter = require('./routes/apiRoute')
@@ -46,7 +47,7 @@ const wss = new ws.Server({ server })
 const clients = new Map()
 const messageQueues = new Map()
 
-wss.on('connection', (socket, req) => {
+wss.on('connection', async (socket, req) => {
 	const cookie = req.headers.cookie
 	if (cookie) {
 		const refreshToken = getRefreshToken(cookie)
@@ -57,6 +58,7 @@ wss.on('connection', (socket, req) => {
 			socket.email = decode.payload.email
 			socket.name = decode.payload.name
 			if (!clients.has(socket._id)) {
+				await User.findByIdAndUpdate(socket._id, { isOnline: true })
 				clients.set(socket._id, socket)
 				broadCastOnlineUsers()
 			}
@@ -73,12 +75,18 @@ wss.on('connection', (socket, req) => {
 
 	socket.on('message', async (message) => {
 		const data = JSON.parse(message.toString('utf-8'))
-		const { recipient, content } = data.message
-		if (recipient) {
+		const { conversationId, recipient, content } = data.message
+		if (conversationId && recipient) {
 			const recipientQueue = messageQueues.get(recipient) || new Queue()
 			messageQueues.set(recipient, recipientQueue)
 
-			recipientQueue.enqueue({ sender: socket._id, recipient, content, originalData: data })
+			recipientQueue.enqueue({
+				conversationId: conversationId,
+				sender: socket._id,
+				recipient,
+				content,
+				originalData: data,
+			})
 
 			processQueue(recipient)
 		} else {
@@ -86,8 +94,9 @@ wss.on('connection', (socket, req) => {
 		}
 	})
 
-	socket.on('close', () => {
+	socket.on('close', async () => {
 		console.log('Client disconnected.')
+		await User.findByIdAndUpdate(socket._id, { isOnline: false, lastSeen: Date.now() })
 		clients.delete(socket._id)
 		broadCastOnlineUsers()
 	})
@@ -120,9 +129,10 @@ async function processQueue(recipient) {
 	if (!client || client.readyState !== ws.OPEN) {
 		// logic to store messages when user offline
 		while (!queue.isEmpty()) {
-			const { sender, content, originalData } = queue.dequeue()
+			const { conversationId, sender, content, originalData } = queue.dequeue()
 			try {
 				await Message.create({
+					conversationId,
 					sender,
 					recipient,
 					text: content,
@@ -140,16 +150,16 @@ async function processQueue(recipient) {
 	client.processingQueue = true
 
 	while (!queue.isEmpty()) {
-		const { sender, content, originalData } = queue.dequeue()
+		const { conversationId, sender, content, originalData } = queue.dequeue()
 
 		try {
 			const doc = await Message.create({
+				conversationId,
 				sender,
 				recipient,
 				text: content,
 			})
-
-			client.send(JSON.stringify({ ...originalData, messageId: doc._id }))
+			client.send(JSON.stringify({ type: originalData.type, message: doc, messageId: doc._id }))
 		} catch (error) {
 			console.error('Error processing message:', error)
 			queue.enqueue({ sender, recipient, content, originalData }) // Re-enqueue the message if there was an error

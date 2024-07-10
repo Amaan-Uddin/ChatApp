@@ -6,37 +6,33 @@ export class AuthService {
 	}
 
 	async signup_user(user_data) {
-		return await this.responseHandler('/auth/signup', user_data)
+		return await this.responseHandler('/auth/signup', user_data, 'POST')
 	}
 
 	async login_user(user_data) {
-		return await this.responseHandler('/auth/login', user_data)
+		return await this.responseHandler('/auth/login', user_data, 'POST')
+	}
+
+	async logout_user() {
+		return await this.responseHandler('/auth/logout', null, 'GET')
 	}
 
 	async getCurrentUser() {
-		try {
-			const response = await fetch(`${this.baseUrl}/auth/current-user`, {
-				method: 'GET',
-				credentials: 'include',
-			})
-			const responseMsg = await response.json()
-			if (!response.ok) {
-				throw new Error(responseMsg.error || 'Something went wrong.')
-			}
-			return responseMsg
-		} catch (error) {
-			throw new Error(error.message || 'An unknown error occured in authservice.')
-		}
+		return await this.responseHandler('/auth/current-user', null, 'GET')
 	}
 
-	async responseHandler(endpoint, data) {
+	async
+
+	async responseHandler(endpoint, data, method) {
 		try {
 			const response = await fetch(`${this.baseUrl}${endpoint}`, {
-				method: 'POST',
-				body: JSON.stringify(data),
-				headers: {
-					'Content-type': 'application/json',
-				},
+				method: method,
+				...(data && {
+					body: JSON.stringify(data),
+					headers: {
+						'Content-Type': 'application/json',
+					},
+				}),
 				credentials: 'include',
 			})
 			const responseMsg = await response.json()
